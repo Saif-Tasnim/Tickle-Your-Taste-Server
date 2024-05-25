@@ -63,7 +63,28 @@ async function run() {
   try {
     // Connect the client to the server	(optional starting in v4.7)
     await client.connect();
-    // Send a ping to confirm a successful connection
+    const userCollection = client.db("RecipeHouse").collection("users");
+
+    app.get("/users/:email", verifyJWT, async (req, res) => {
+      const query = { email: req.params.email };
+      const data = await userCollection.findOne(query);
+      if (!data) {
+        return res.status(401).json({message: "Unauthorized Access"})
+      }
+      res.send(data);
+    });
+
+    app.post("/store-user", async (req, res) => {
+      const body = req.body;
+      const query = { email: body.email };
+      const found = await userCollection.findOne(query);
+      if (found) {
+        return res.send("user already exist");
+      }
+      const result = await userCollection.insertOne(body);
+      res.send(result);
+    });
+
     await client.db("admin").command({ ping: 1 });
     console.log(
       "Pinged your deployment. You successfully connected to MongoDB!"
