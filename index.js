@@ -64,12 +64,19 @@ async function run() {
     // Connect the client to the server	(optional starting in v4.7)
     await client.connect();
     const userCollection = client.db("RecipeHouse").collection("users");
+    const recipeCollection = client.db("RecipeHouse").collection("recipe");
 
     app.get("/users/:email", verifyJWT, async (req, res) => {
       const query = { email: req.params.email };
+      const { email } = req.decoded;
+
+      if (email !== req.params.email) {
+        return res.status(401).json({ message: "Unauthorized Access" });
+      }
+
       const data = await userCollection.findOne(query);
       if (!data) {
-        return res.status(401).json({message: "Unauthorized Access"})
+        return res.status(401).json({ message: "Unauthorized Access" });
       }
       res.send(data);
     });
@@ -82,6 +89,21 @@ async function run() {
         return res.send("user already exist");
       }
       const result = await userCollection.insertOne(body);
+      res.send(result);
+    });
+
+    app.get("/get-recipe", async (req, res) => {
+      const result = await recipeCollection.find().toArray();
+      res.send(result);
+    });
+
+    app.post("/recipe-store", verifyJWT, async (req, res) => {
+      const data = req.body;
+      const { email } = req.decoded;
+      if (email !== data.creatorEmail) {
+        return res.status(401).json({ message: "Unauthorized access" });
+      }
+      const result = await recipeCollection.insertOne(data);
       res.send(result);
     });
 
