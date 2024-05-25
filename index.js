@@ -93,7 +93,21 @@ async function run() {
     });
 
     app.get("/get-recipe", async (req, res) => {
-      const result = await recipeCollection.find().toArray();
+      const result = await recipeCollection
+        .find(
+          {},
+          {
+            projection: {
+              recipeName: 1,
+              recipeImage: 1,
+              purchasedBy: 1,
+              creatorEmail: 1,
+              countryName: 1,
+              watchCount: 1,
+            },
+          }
+        )
+        .toArray();
       res.send(result);
     });
 
