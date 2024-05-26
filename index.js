@@ -81,6 +81,21 @@ async function run() {
       res.send(data);
     });
 
+    app.get("/creator-users/:email", verifyJWT, async (req, res) => {
+      const query = { email: req.params.email };
+
+      const data = await userCollection.findOne(query, {
+        projection: {
+          email: 1,
+          coins: 1,
+        },
+      });
+      if (!data) {
+        return res.status(404).json({ message: "Users Not Found" });
+      }
+      res.send(data);
+    });
+
     app.post("/store-user", async (req, res) => {
       const body = req.body;
       const query = { email: body.email };
@@ -111,6 +126,12 @@ async function run() {
       res.send(result);
     });
 
+    app.get("/get-recipe/:id", async (req, res) => {
+      const { id } = req.params;
+      const result = await recipeCollection.findOne({ _id: new ObjectId(id) });
+      res.send(result);
+    });
+
     app.post("/recipe-store", verifyJWT, async (req, res) => {
       const data = req.body;
       const { email } = req.decoded;
@@ -119,6 +140,72 @@ async function run() {
       }
       const result = await recipeCollection.insertOne(data);
       res.send(result);
+    });
+
+    app.patch("/update-recipe", verifyJWT, async (req, res) => {
+      const { newUserData, newCreatorData, newRecipeData } = req.body;
+      const userId = new ObjectId(newUserData._id);
+      const creatorId = new ObjectId(newCreatorData._id);
+      const recipeId = new ObjectId(newRecipeData._id);
+
+      delete newUserData._id;
+      delete newCreatorData._id;
+      delete newRecipeData._id;
+
+      const userQuery = { _id: userId };
+      const creatorQuery = { _id: creatorId };
+      const recipeQuery = { _id: recipeId };
+
+      const updateUserInfo = {
+        $set: {
+          ...newUserData,
+        },
+      };
+      const updateCreatorInfo = {
+        $set: {
+          ...newCreatorData,
+        },
+      };
+      const updateRecipeInfo = {
+        $set: {
+          ...newRecipeData,
+        },
+      };
+
+      try {
+        const updateUserRes = await userCollection.updateOne(
+          userQuery,
+          updateUserInfo
+        );
+        const updateCreatorRes = await userCollection.updateOne(
+          creatorQuery,
+          updateCreatorInfo
+        );
+        const updateRecipeRes = await recipeCollection.updateOne(
+          recipeQuery,
+          updateRecipeInfo
+        );
+
+        if (
+          updateUserRes.modifiedCount > 0 &&
+          updateCreatorRes.modifiedCount > 0 &&
+          updateRecipeRes.modifiedCount > 0
+        ) {
+          return res.send({
+            message: "Update successful",
+            updateUserRes,
+            updateCreatorRes,
+            updateRecipeRes,
+          });
+        } else {
+          return res.status(400).json({ message: "No records were updated" });
+        }
+      } catch (error) {
+        console.error("Error updating records:", error);
+        return res
+          .status(500)
+          .json({ message: "Something went wrong. Try again.", error });
+      }
     });
 
     await client.db("admin").command({ ping: 1 });
