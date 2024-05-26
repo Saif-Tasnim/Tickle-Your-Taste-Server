@@ -3,6 +3,7 @@ const cors = require("cors");
 require("dotenv").config();
 const jwt = require("jsonwebtoken");
 const port = process.env.PORT || 5000;
+const stripe = require("stripe")(process.env.PAYMENT_GATEWAY_KEY);
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 
 const app = express();
@@ -65,6 +66,7 @@ async function run() {
     await client.connect();
     const userCollection = client.db("RecipeHouse").collection("users");
     const recipeCollection = client.db("RecipeHouse").collection("recipe");
+    const paymentCollection = client.db("RecipeHouse").collection("payment");
 
     app.get("/users/:email", verifyJWT, async (req, res) => {
       const query = { email: req.params.email };
@@ -205,6 +207,41 @@ async function run() {
         return res
           .status(500)
           .json({ message: "Something went wrong. Try again.", error });
+      }
+    });
+
+    // payment gateway
+    app.post("/create-payment-intent", verifyJWT, async (req, res) => {
+      const { price } = req.body;
+      const amount = parseFloat(price) * 100;
+      const paymentIntent = await stripe.paymentIntents.create({
+        amount: amount,
+        currency: "usd",
+        payment_method_types: ["card"],
+      });
+
+      res.send({
+        clientSecret: paymentIntent.client_secret,
+      });
+    });
+
+    app.post("/payment", verifyJWT, async (req, res) => {
+      const body = req.body;
+      const { email, amount } = body;
+      const query = { email: email };
+      const price = parseInt(amount);
+
+      const updateData = {
+        $set: {
+          coins: price === 1 ? 100 : amount == 5 ? 500 : 1000,
+        },
+      };
+      const result = await userCollection.updateOne(query, updateData);
+      if (result.modifiedCount > 0) {
+        const store = await paymentCollection.insertOne(body);
+        res.send(store);
+      } else {
+        res.status(500).json({ message: "Internal Error. Try again" });
       }
     });
 
