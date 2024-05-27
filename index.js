@@ -128,7 +128,7 @@ async function run() {
       res.send(result);
     });
 
-    app.get("/get-recipe/:id", async (req, res) => {
+    app.get("/get-recipe/:id", verifyJWT,  async (req, res) => {
       const { id } = req.params;
       const result = await recipeCollection.findOne({ _id: new ObjectId(id) });
       res.send(result);
