@@ -110,25 +110,71 @@ async function run() {
     });
 
     app.get("/get-recipe", async (req, res) => {
+      const page = parseInt(req.query.page);
+
+      if (page) {
+        const pageSize = 6;
+        const skip = (page - 1) * pageSize;
+        const result = await recipeCollection
+          .find(
+            {},
+            {
+              projection: {
+                recipeName: 1,
+                recipeImage: 1,
+                purchasedBy: 1,
+                creatorEmail: 1,
+                countryName: 1,
+                watchCount: 1,
+              },
+            }
+          )
+          .skip(skip)
+          .limit(pageSize)
+          .toArray();
+        res.send(result);
+      } else {
+        const result = await recipeCollection
+          .find(
+            {},
+            {
+              projection: {
+                recipeName: 1,
+                recipeImage: 1,
+                purchasedBy: 1,
+                creatorEmail: 1,
+                countryName: 1,
+                watchCount: 1,
+              },
+            }
+          )
+          .toArray();
+        res.send(result);
+      }
+    });
+
+    app.get("/get-recipes/:id", async (req, res) => {
+      const { id } = req.params;
+      let query = {};
+      if (id) {
+        query = { recipeName: { $regex: new RegExp(id, "i") } };
+      }
       const result = await recipeCollection
-        .find(
-          {},
-          {
-            projection: {
-              recipeName: 1,
-              recipeImage: 1,
-              purchasedBy: 1,
-              creatorEmail: 1,
-              countryName: 1,
-              watchCount: 1,
-            },
-          }
-        )
+        .find(query, {
+          projection: {
+            recipeName: 1,
+            recipeImage: 1,
+            purchasedBy: 1,
+            creatorEmail: 1,
+            countryName: 1,
+            watchCount: 1,
+          },
+        })
         .toArray();
       res.send(result);
     });
 
-    app.get("/get-recipe/:id", verifyJWT,  async (req, res) => {
+    app.get("/get-recipe/:id", verifyJWT, async (req, res) => {
       const { id } = req.params;
       const result = await recipeCollection.findOne({ _id: new ObjectId(id) });
       res.send(result);
@@ -207,6 +253,38 @@ async function run() {
         return res
           .status(500)
           .json({ message: "Something went wrong. Try again.", error });
+      }
+    });
+
+    app.patch("/post-reactions/:id", async (req, res) => {
+      const { id } = req.params;
+      const { email } = req.body;
+
+      try {
+        const findPrev = await recipeCollection.findOne({
+          _id: new ObjectId(id),
+        });
+
+        let updatedDoc;
+
+        if (findPrev.reactions && findPrev.reactions.includes(email)) {
+          updatedDoc = {
+            $pull: { reactions: email },
+          };
+        } else {
+          updatedDoc = {
+            $addToSet: { reactions: email },
+          };
+        }
+        const updateData = await recipeCollection.updateOne(
+          { _id: new ObjectId(id) },
+          updatedDoc
+        );
+
+        res.send(updateData);
+      } catch (error) {
+        console.error("Error updating reaction:", error);
+        res.status(500).send({ message: "Internal server error" });
       }
     });
 
